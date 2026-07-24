@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextvars
 import re
 import time
 from collections.abc import Awaitable, Callable
@@ -9,6 +8,10 @@ from uuid import uuid4
 from fastapi import Request, Response
 
 from app.core.logging import get_logger
+from app.core.request_context import (
+    reset_correlation_id,
+    set_correlation_id,
+)
 
 CORRELATION_ID_HEADER = "X-Correlation-ID"
 MAX_CORRELATION_ID_LENGTH = 64
@@ -16,23 +19,7 @@ _UUID_PATTERN = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
     r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
 )
-_correlation_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "correlation_id",
-    default=None,
-)
 logger = get_logger(__name__)
-
-
-def get_correlation_id() -> str:
-    correlation_id = _correlation_id.get()
-    if correlation_id is None:
-        correlation_id = str(uuid4())
-        _correlation_id.set(correlation_id)
-    return correlation_id
-
-
-def current_correlation_id() -> str | None:
-    return _correlation_id.get()
 
 
 def is_valid_correlation_id(value: str | None) -> bool:
@@ -56,7 +43,7 @@ async def correlation_id_middleware(
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     correlation_id = normalize_correlation_id(request.headers.get(CORRELATION_ID_HEADER))
-    token = _correlation_id.set(correlation_id)
+    token = set_correlation_id(correlation_id)
     start = time.perf_counter()
     try:
         response = await call_next(request)
@@ -74,4 +61,4 @@ async def correlation_id_middleware(
         )
         return response
     finally:
-        _correlation_id.reset(token)
+        reset_correlation_id(token)

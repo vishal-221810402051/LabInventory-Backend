@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import pytest
 
 from app.discovery.config import TXT_RECORDS, MdnsConfig
@@ -33,3 +36,29 @@ def test_invalid_advertise_addresses_are_rejected(address: str) -> None:
 
 def test_private_lan_advertise_address_is_accepted() -> None:
     assert validate_advertise_ip("192.168.1.20") == "192.168.1.20"
+
+
+def test_mdns_advertiser_imports_when_fastapi_is_blocked() -> None:
+    code = """
+import importlib.abc
+import sys
+
+class BlockFastApi(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.startswith(("fastapi", "starlette")):
+            raise ModuleNotFoundError(fullname)
+        return None
+
+sys.meta_path.insert(0, BlockFastApi())
+import tools.mdns_advertiser
+print("mDNS advertiser import OK")
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "mDNS advertiser import OK" in result.stdout

@@ -29,6 +29,7 @@ def verify_backend(base_url: str) -> dict[str, object]:
     with httpx.Client(timeout=5.0) as client:
         ready = client.get(f"{base_url}/health/ready")
         ready.raise_for_status()
+        print("Backend ready", flush=True)
         info = client.get(f"{base_url}/api/v1/system/info")
         info.raise_for_status()
         data = info.json()
@@ -48,6 +49,7 @@ def verify_backend(base_url: str) -> dict[str, object]:
     if capabilities != ["health", "discovery"]:
         msg = "Incompatible backend capabilities."
         raise RuntimeError(msg)
+    print("Backend contract compatible", flush=True)
     return data
 
 
@@ -58,16 +60,16 @@ def main() -> int:
     base_url = args.backend_url or f"http://127.0.0.1:{settings.api_port}"
 
     logger.info("Verifying backend before mDNS advertisement", extra={"event": "mdns.host.verify"})
+    print("Verifying backend before mDNS advertisement", flush=True)
     verify_backend(base_url)
 
-    advertiser = ZeroconfAdvertiser(
-        MdnsConfig(
-            service_name=settings.mdns_service_name,
-            service_type=settings.mdns_service_type,
-            port=settings.api_port,
-            advertise_ip=settings.mdns_advertise_ip,
-        )
+    mdns_config = MdnsConfig(
+        service_name=settings.mdns_service_name,
+        service_type=settings.mdns_service_type,
+        port=settings.api_port,
+        advertise_ip=settings.mdns_advertise_ip,
     )
+    advertiser = ZeroconfAdvertiser(mdns_config)
     stop_event = threading.Event()
 
     def stop(_: int, __: object) -> None:
@@ -77,6 +79,11 @@ def main() -> int:
     signal.signal(signal.SIGTERM, stop)
 
     advertiser.register()
+    print("Advertising LabInventory Backend", flush=True)
+    print(f"Address: {advertiser.advertised_ip}", flush=True)
+    print(f"Port: {settings.api_port}", flush=True)
+    print(f"Service type: {mdns_config.zeroconf_service_type}", flush=True)
+    print("Press Ctrl+C to stop", flush=True)
     logger.info(
         "Windows host mDNS companion is advertising",
         extra={

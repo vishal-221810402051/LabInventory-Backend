@@ -1,0 +1,31 @@
+Using mDNS Python: C:\Users\visha\Desktop\Projects\labInventory_backend\.mdns-venv\Scripts\python.exe
+Installing mDNS companion dependencies into local virtual environment
+Requirement already satisfied: pip in .\.mdns-venv\Lib\site-packages (26.1.2)
+Requirement already satisfied: httpx==0.28.1 in .\.mdns-venv\Lib\site-packages (0.28.1)
+Requirement already satisfied: pydantic==2.10.4 in .\.mdns-venv\Lib\site-packages (2.10.4)
+Requirement already satisfied: pydantic-settings==2.7.1 in .\.mdns-venv\Lib\site-packages (2.7.1)
+Requirement already satisfied: python-json-logger==3.2.1 in .\.mdns-venv\Lib\site-packages (3.2.1)
+Requirement already satisfied: zeroconf==0.136.2 in .\.mdns-venv\Lib\site-packages (0.136.2)
+Requirement already satisfied: anyio in .\.mdns-venv\Lib\site-packages (from httpx==0.28.1) (4.14.2)
+Requirement already satisfied: certifi in .\.mdns-venv\Lib\site-packages (from httpx==0.28.1) (2026.7.22)
+Requirement already satisfied: httpcore==1.* in .\.mdns-venv\Lib\site-packages (from httpx==0.28.1) (1.0.9)
+Requirement already satisfied: idna in .\.mdns-venv\Lib\site-packages (from httpx==0.28.1) (3.18)
+Requirement already satisfied: annotated-types>=0.6.0 in .\.mdns-venv\Lib\site-packages (from pydantic==2.10.4) (0.8.0)
+Requirement already satisfied: pydantic-core==2.27.2 in .\.mdns-venv\Lib\site-packages (from pydantic==2.10.4) (2.27.2)
+Requirement already satisfied: typing-extensions>=4.12.2 in .\.mdns-venv\Lib\site-packages (from pydantic==2.10.4) (4.16.0)
+Requirement already satisfied: python-dotenv>=0.21.0 in .\.mdns-venv\Lib\site-packages (from pydantic-settings==2.7.1) (1.2.2)
+Requirement already satisfied: ifaddr>=0.1.7 in .\.mdns-venv\Lib\site-packages (from zeroconf==0.136.2) (0.2.0)
+Requirement already satisfied: h11>=0.16 in .\.mdns-venv\Lib\site-packages (from httpcore==1.*->httpx==0.28.1) (0.16.0)
+{"timestamp": "2026-07-24 21:35:51,979", "level": "INFO", "logger": "__main__", "message": "Verifying backend before mDNS advertisement", "event": "mdns.host.verify", "correlation_id": null, "http_method": null, "request_path": null, "response_status": null, "duration_ms": null}
+Verifying backend before mDNS advertisement
+{"timestamp": "2026-07-24 21:35:52,241", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://127.0.0.1:8000/health/ready \"HTTP/1.1 200 OK\"", "event": null, "correlation_id": null, "http_method": null, "request_path": null, "response_status": null, "duration_ms": null}
+Backend ready
+{"timestamp": "2026-07-24 21:35:52,243", "level": "INFO", "logger": "httpx", "message": "HTTP Request: GET http://127.0.0.1:8000/api/v1/system/info \"HTTP/1.1 200 OK\"", "event": null, "correlation_id": null, "http_method": null, "request_path": null, "response_status": null, "duration_ms": null}
+Backend contract compatible
+{"timestamp": "2026-07-24 21:35:53,061", "level": "INFO", "logger": "app.discovery.advertiser", "message": "mDNS service registered", "event": "mdns.registration", "correlation_id": null, "http_method": null, "request_path": null, "response_status": null, "duration_ms": null, "mdns_service_type": "_labinventory._tcp.local.", "mdns_service_name": "LabInventory Backend._labinventory._tcp.local.", "mdns_advertise_ip": "10.165.159.140", "mdns_port": 8000}
+Advertising LabInventory Backend
+Address: 10.165.159.140
+Port: 8000
+Service type: _labinventory._tcp.local.
+Press Ctrl+C to stop
+{"timestamp": "2026-07-24 21:35:53,071", "level": "INFO", "logger": "__main__", "message": "Windows host mDNS companion is advertising", "event": "mdns.host.running", "correlation_id": null, "http_method": null, "request_path": null, "response_status": null, "duration_ms": null, "mdns_advertise_ip": "10.165.159.140", "mdns_port": 8000}

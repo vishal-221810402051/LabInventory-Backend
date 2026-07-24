@@ -6,11 +6,11 @@ from typing import Any
 
 from pythonjsonlogger.json import JsonFormatter
 
+from app.core.request_context import current_correlation_id
+
 
 class CorrelationIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        from app.core.correlation import current_correlation_id
-
         if not hasattr(record, "correlation_id"):
             record.correlation_id = current_correlation_id()
         return True

@@ -145,6 +145,34 @@ Docker Desktop on Windows may not reliably multicast from inside Linux container
 .\scripts\start-mdns.ps1
 ```
 
+The companion uses its own lightweight virtual environment at `.mdns-venv`. That environment intentionally installs only the host-advertiser dependencies: HTTPX, Pydantic, Pydantic Settings, python-json-logger, and Zeroconf. It does not install FastAPI, SQLAlchemy, Alembic, Psycopg, or Uvicorn.
+
+Core logging used by the companion must stay framework-neutral. If the companion fails during import with a missing FastAPI or Starlette module, fix the backend import dependency direction rather than installing FastAPI into `.mdns-venv`.
+
+Verify the companion interpreter and import path:
+
+```powershell
+.\.mdns-venv\Scripts\python.exe -c "import importlib.util; print(importlib.util.find_spec('fastapi'))"
+
+.\.mdns-venv\Scripts\python.exe -c "import app.core.request_context; import app.core.logging; import tools.mdns_advertiser; print('mDNS imports OK')"
+```
+
+The first command should print `None`. The second should print `mDNS imports OK`.
+
+Expected startup shape:
+
+```text
+Using mDNS Python: <repo>\.mdns-venv\Scripts\python.exe
+Verifying backend before mDNS advertisement
+Backend ready
+Backend contract compatible
+Advertising LabInventory Backend
+Address: <laptop-lan-ip>
+Port: 8000
+Service type: _labinventory._tcp.local.
+Press Ctrl+C to stop
+```
+
 The companion verifies:
 
 - `http://127.0.0.1:8000/health/ready`
@@ -219,6 +247,8 @@ $response.Headers["X-Correlation-ID"]
 ```
 
 Check mDNS companion logs in the PowerShell window where it is running.
+
+If the mDNS companion exits before printing `Verifying backend before mDNS advertisement`, run the interpreter checks from the mDNS section. If `fastapi` is found in `.mdns-venv`, the virtual environment is too heavy and should be recreated. If importing `app.core.logging` or `tools.mdns_advertiser` fails because FastAPI is missing, a framework-specific import has leaked into the host companion path.
 
 ### Stale PostgreSQL Password After `.env` Changes
 

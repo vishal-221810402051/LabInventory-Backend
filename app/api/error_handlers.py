@@ -4,9 +4,9 @@ from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.core.correlation import get_correlation_id
 from app.core.errors import ApplicationError
 from app.core.logging import get_logger
+from app.core.request_context import get_correlation_id
 from app.schemas.errors import ErrorEnvelope
 
 logger = get_logger(__name__)
