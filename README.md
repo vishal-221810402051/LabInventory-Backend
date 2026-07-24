@@ -1,6 +1,6 @@
 # LabInventory Backend
 
-LabInventory is a laptop-hosted backend for an Android-first lab inventory system. Phase 0 builds the service foundation: health checks, readiness, system information, stable backend identity, structured logs, correlation IDs, PostgreSQL/Alembic wiring, local storage safety, Docker, and mDNS discovery support. Phase 1 adds draft capture-session persistence and secure local photo ingestion. Phase 2 adds Android-supplied OCR result ingestion, deterministic text normalization, persistence, and retrieval.
+LabInventory is a laptop-hosted backend for an Android-first lab inventory system. Phase 0 builds the service foundation: health checks, readiness, system information, stable backend identity, structured logs, correlation IDs, PostgreSQL/Alembic wiring, local storage safety, Docker, and mDNS discovery support. Phase 1 adds draft capture-session persistence and secure local photo ingestion. Phase 2 adds Android-supplied OCR result ingestion, deterministic text normalization, persistence, and retrieval. Phase 3 adds controlled, text-only OpenAI item interpretation suggestions for completed captures.
 
 ## Phase 0 Scope
 
@@ -80,6 +80,34 @@ Not included in Phase 2:
 - Authentication, pairing, or device authorization
 - Background processing or sync orchestration
 
+## Phase 3 Scope
+
+Included:
+
+- `GET /api/v1/ai/status`
+- `POST /api/v1/capture-sessions/{capture_session_id}/interpretations`
+- `GET /api/v1/capture-sessions/{capture_session_id}/interpretations`
+- `GET /api/v1/capture-sessions/{capture_session_id}/interpretations/{interpretation_id}`
+- PostgreSQL-backed AI interpretation persistence
+- Official OpenAI Python SDK with Responses API
+- Strict JSON schema structured output
+- Provider abstraction so normal tests never call OpenAI
+- Idempotent interpretation requests
+- Safe provider failure persistence
+- Token and latency metadata
+
+Not included in Phase 3:
+
+- Inventory item creation
+- Stock changes
+- Automatic approval
+- Background processing
+- Server-side OCR
+- Image input to OpenAI
+- Web search, file search, code interpreter, function tools, or remote MCP
+
+AI interpretation output is not authoritative. It is an untrusted suggestion requiring explicit human review on Android before any future inventory workflow may use it.
+
 ## Architecture
 
 Routes are intentionally thin. API handlers call services, services call infrastructure, and shared concerns live in `app/core`.
@@ -119,6 +147,17 @@ Copy-Item .env.example .env
 
 Edit `.env` and change `POSTGRES_PASSWORD` for your local machine. Do not commit `.env`.
 
+AI interpretation is disabled by default. To enable it locally, set values in `.env`:
+
+```text
+AI_INTERPRETATION_ENABLED=true
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5-mini
+OPENAI_STORE=false
+```
+
+Do not commit a real key. `OPENAI_API_KEY` is read only by the backend process and is never returned through an endpoint, sent to Android, or logged. For controlled production behavior, prefer a pinned model snapshot rather than an unpinned moving target.
+
 ## Build And Startup
 
 ```powershell
@@ -132,6 +171,7 @@ The API is available at:
 - `http://localhost:8000/health/live`
 - `http://localhost:8000/health/ready`
 - `http://localhost:8000/api/v1/system/info`
+- `http://localhost:8000/api/v1/ai/status`
 - `http://localhost:8000/docs`
 - `http://localhost:8000/redoc`
 - `http://localhost:8000/openapi.json`
@@ -177,6 +217,67 @@ Run the Phase 2 validation script:
 ```
 
 The Phase 2 script validates Compose, starts DB and backend, applies Alembic, compiles, tests, runs Ruff and Mypy, verifies Phase 0 endpoints, creates a sample photo capture, uploads a tiny generated JPEG, submits and replays OCR, retrieves OCR results, completes the capture, verifies new OCR is rejected after completion, removes temporary host files, and prints Git status. It does not delete Docker volumes.
+
+Run the Phase 3 validation script:
+
+```powershell
+.\scripts\validate-phase3.ps1
+```
+
+The Phase 3 script validates Compose, starts DB and backend in safe AI-disabled mode, applies Alembic, compiles, tests, runs Ruff and Mypy, verifies Phase 0 endpoints, checks AI status, verifies disabled and unconfigured AI behavior, validates OpenAPI, removes no Docker volumes, and makes no live OpenAI request.
+
+Live OpenAI validation is opt-in and billable:
+
+```powershell
+.\scripts\validate-phase3-live.ps1 -ConfirmLiveAi
+```
+
+The live script requires `AI_INTERPRETATION_ENABLED=true` and `OPENAI_API_KEY`, creates a temporary sample capture, uploads a tiny image, uploads sample OCR, completes the capture, requests one interpretation, replays it to verify idempotency, and prints only the safe structured result.
+
+## Phase 3 AI Safety
+
+The backend sends only text derived from persisted capture/OCR/manual data:
+
+- capture mode
+- manual name, unit, category hint, notes, and quantity as contextual metadata
+- corrected OCR text when present
+- otherwise normalized OCR text
+- explicit no-text OCR state
+- locale
+
+The backend does not send image bytes, image paths, original filenames, database IDs, API keys, correlation IDs, internal logs, or unrelated capture data. Combined manual/OCR source text is rejected above 20,000 Unicode characters rather than silently truncated.
+
+OpenAI requests use `store=false`, no tools, no web search, no conversation history, no image input, and strict JSON schema output. Provider output is validated again with Pydantic before storage. Prompt-injection defenses treat OCR and manual fields as untrusted data; instructions inside label text are ignored, URLs are not followed, and the model is told to return insufficient information rather than invent technical specifications, manufacturers, part numbers, quantities, or transactions.
+
+Allowed categories:
+
+- `Boards/Compute`
+- `Sensors/Modules`
+- `Actuators/Drivers`
+- `Passive Components`
+- `ICs`
+- `Wires/Cables`
+- `Tubes/Pipes`
+- `Mechanical/Fasteners`
+- `Tools`
+- `Power Supplies`
+- `Misc`
+
+Allowed units:
+
+- `pcs`
+- `m`
+- `ft`
+- `ml`
+- `l`
+- `g`
+- `kg`
+- `box`
+- `roll`
+- `spool`
+- `kit`
+
+Unknown model categories or units are rejected. The model must use `null` when evidence is insufficient. No percentage confidence is returned; `evidence_strength` is qualitative only.
 
 ## Phase 1 API Examples
 

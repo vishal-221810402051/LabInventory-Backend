@@ -46,6 +46,9 @@ services:
       MDNS_SERVICE_TYPE: ${MDNS_SERVICE_TYPE:-_labinventory._tcp.}
       MDNS_ADVERTISE_IP: ${MDNS_ADVERTISE_IP:-}
       MDNS_FAIL_FAST: ${MDNS_FAIL_FAST:-false}
+      AI_INTERPRETATION_ENABLED: ${AI_INTERPRETATION_ENABLED:-false}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
+      OPENAI_STORE: ${OPENAI_STORE:-false}
     ports:
       - "0.0.0.0:${API_PORT:-8000}:8000"
     volumes:

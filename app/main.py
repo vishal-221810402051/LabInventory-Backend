@@ -14,6 +14,7 @@ from app.api.error_handlers import (
 )
 from app.api.v1.capture_sessions import router as capture_sessions_router
 from app.api.v1.health import router as health_router
+from app.api.v1.interpretations import ai_router, interpretations_router
 from app.api.v1.ocr_results import router as ocr_results_router
 from app.api.v1.system import router as system_router
 from app.core.config import Settings, get_settings
@@ -22,10 +23,14 @@ from app.core.errors import ApplicationError
 from app.core.logging import configure_logging, get_logger
 from app.discovery.advertiser import ZeroconfAdvertiser
 from app.discovery.config import MdnsConfig
+from app.providers.item_interpretation import ItemInterpretationProvider
 from app.services.system_info import InstanceIdStore, SystemInfoService
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    item_interpretation_provider: ItemInterpretationProvider | None = None,
+) -> FastAPI:
     resolved_settings = settings or get_settings()
     configure_logging(resolved_settings.log_level)
     logger = get_logger(__name__)
@@ -63,10 +68,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="LabInventory Backend",
         version="0.1.0",
-        description="Phase 2 API contract for the LabInventory laptop backend.",
+        description="Phase 3 API contract for the LabInventory laptop backend.",
         lifespan=lifespan,
     )
     app.state.settings = resolved_settings
+    app.state.item_interpretation_provider = item_interpretation_provider
     app.state.system_info_service = SystemInfoService(
         resolved_settings,
         InstanceIdStore(resolved_settings.instance_data_root),
@@ -90,6 +96,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(system_router)
     app.include_router(capture_sessions_router)
     app.include_router(ocr_results_router)
+    app.include_router(ai_router)
+    app.include_router(interpretations_router)
     return app
 
 

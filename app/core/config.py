@@ -35,6 +35,15 @@ class Settings(BaseSettings):
     mdns_advertise_ip: str | None = None
     mdns_fail_fast: bool = False
 
+    ai_interpretation_enabled: bool = False
+    openai_api_key: SecretStr | None = None
+    openai_model: str = "gpt-5-mini"
+    openai_store: bool = False
+    ai_request_timeout_seconds: int = Field(default=45, ge=1, le=300)
+    ai_max_retries: int = Field(default=2, ge=0, le=5)
+    ai_prompt_version: str = "phase3-item-interpretation-v1"
+    ai_schema_version: str = "1"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -70,11 +79,28 @@ class Settings(BaseSettings):
             raise ValueError(msg)
         return ",".join(origins)
 
-    @field_validator("database_url", "mdns_advertise_ip", mode="before")
+    @field_validator("database_url", "mdns_advertise_ip", "openai_api_key", mode="before")
     @classmethod
     def empty_string_to_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("openai_model", "ai_prompt_version", "ai_schema_version")
+    @classmethod
+    def validate_ai_identifier(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            msg = "AI configuration identifiers must not be empty."
+            raise ValueError(msg)
+        return normalized
+
+    @field_validator("openai_store")
+    @classmethod
+    def validate_openai_store_disabled(cls, value: bool) -> bool:
+        if value:
+            msg = "OPENAI_STORE must remain false for Phase 3."
+            raise ValueError(msg)
         return value
 
     @field_validator("mdns_service_name")
@@ -119,6 +145,10 @@ class Settings(BaseSettings):
         port = self.postgres_port
         db_name = quote_plus(self.postgres_db)
         return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db_name}"
+
+    @property
+    def openai_configured(self) -> bool:
+        return self.openai_api_key is not None
 
 
 @lru_cache

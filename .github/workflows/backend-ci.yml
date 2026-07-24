@@ -7,6 +7,7 @@ on:
       - phase/0-foundation
       - phase/1-capture-drafts
       - phase/2-label-ocr
+      - phase/3-ai-interpretation
   pull_request:
 
 jobs:
@@ -68,7 +69,7 @@ jobs:
 
       - name: Alembic downgrade and re-upgrade
         run: |
-          alembic downgrade 202607240002
+          alembic downgrade 202607250001
           alembic upgrade head
 
       - name: Pytest

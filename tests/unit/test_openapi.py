@@ -39,3 +39,23 @@ def test_openapi_contains_phase2_ocr_endpoints(client: TestClient) -> None:
     assert "Idempotency-Key" in {
         parameter["name"] for parameter in paths[ocr_path]["post"]["parameters"]
     }
+
+
+def test_openapi_contains_phase3_ai_endpoints(client: TestClient) -> None:
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    paths = response.json()["paths"]
+    interpretations_path = "/api/v1/capture-sessions/{capture_session_id}/interpretations"
+    interpretation_path = (
+        "/api/v1/capture-sessions/{capture_session_id}/interpretations/{interpretation_id}"
+    )
+    assert "/api/v1/ai/status" in paths
+    assert interpretations_path in paths
+    assert interpretation_path in paths
+    assert "post" in paths[interpretations_path]
+    assert "get" in paths[interpretations_path]
+    assert "get" in paths[interpretation_path]
+    assert "Idempotency-Key" in {
+        parameter["name"] for parameter in paths[interpretations_path]["post"]["parameters"]
+    }

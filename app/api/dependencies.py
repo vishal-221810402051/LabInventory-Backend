@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.db.session import get_session_factory
+from app.providers.item_interpretation import (
+    DisabledItemInterpretationProvider,
+    ItemInterpretationProvider,
+    OpenAiItemInterpretationProvider,
+)
 from app.services.capture_sessions import CaptureSessionService
+from app.services.interpretations import InterpretationService
 from app.services.ocr_results import OcrResultService
 from app.services.readiness import ReadinessService
 from app.services.system_info import SystemInfoService
@@ -48,3 +54,23 @@ def get_ocr_result_service(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> OcrResultService:
     return OcrResultService(session)
+
+
+def get_item_interpretation_provider(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings_dependency)],
+) -> ItemInterpretationProvider:
+    provider = getattr(request.app.state, "item_interpretation_provider", None)
+    if provider is not None:
+        return provider
+    if not settings.ai_interpretation_enabled or not settings.openai_configured:
+        return DisabledItemInterpretationProvider()
+    return OpenAiItemInterpretationProvider(settings)
+
+
+def get_interpretation_service(
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings_dependency)],
+    provider: Annotated[ItemInterpretationProvider, Depends(get_item_interpretation_provider)],
+) -> InterpretationService:
+    return InterpretationService(session, settings, provider)
