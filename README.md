@@ -220,6 +220,45 @@ $response.Headers["X-Correlation-ID"]
 
 Check mDNS companion logs in the PowerShell window where it is running.
 
+### Stale PostgreSQL Password After `.env` Changes
+
+PostgreSQL reads `POSTGRES_USER`, `POSTGRES_DB`, and `POSTGRES_PASSWORD` only when its data directory is initialized for the first time. If the named `postgres-data` Docker volume already exists, PostgreSQL logs this during startup:
+
+```text
+Database directory appears to contain a database; Skipping initialization
+```
+
+Changing `.env` later updates the backend container environment and the DB container environment, but it does not rewrite the already-created PostgreSQL role password inside the existing data volume. The symptom is:
+
+- `/health/live` returns `ok`
+- `/api/v1/system/info` returns normally
+- `/health/ready` returns `DATABASE_UNAVAILABLE`
+- DB logs contain `password authentication failed for user "labinventory"`
+
+Diagnose without printing passwords:
+
+```powershell
+docker compose exec -T backend python -c "import os; from sqlalchemy.engine import make_url; print(make_url(os.environ['DATABASE_URL']).render_as_string(hide_password=True))"
+
+docker compose exec -T backend python -c "import os, hashlib; from sqlalchemy.engine import make_url; password = make_url(os.environ['DATABASE_URL']).password or ''; print(hashlib.sha256(password.encode()).hexdigest())"
+
+docker compose exec -T db sh -lc 'printf "%s" "$POSTGRES_PASSWORD" | sha256sum'
+
+docker compose logs --tail 100 db
+```
+
+If the backend and DB password hashes match but PostgreSQL still rejects authentication and reports skipped initialization, the persisted PostgreSQL role password is stale.
+
+For Phase 0 only, after confirming there is no real inventory or user data, use the guarded reset script:
+
+```powershell
+.\scripts\reset-phase0-database.ps1 -ConfirmPhase0DataLoss
+```
+
+The script removes only the PostgreSQL data volume after checking that the database has no application-domain tables. It preserves the backend instance-data and upload volumes, recreates PostgreSQL, applies Alembic, and verifies `/health/ready`.
+
+Do not use this reset script after real inventory, user, upload, sync, or transaction data exists.
+
 ## Current Known Limitations
 
 - No authentication or pairing yet.
