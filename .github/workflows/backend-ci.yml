@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - phase/0-foundation
+      - phase/1-capture-drafts
   pull_request:
 
 jobs:
@@ -53,13 +54,21 @@ jobs:
         run: python -m mypy app tools
 
       - name: Compile
-        run: python -m compileall app
+        run: python -m compileall app tests tools
 
       - name: Alembic one head
         run: test "$(alembic heads | wc -l)" -eq 1
 
       - name: Alembic upgrade
         run: alembic upgrade head
+
+      - name: Alembic current
+        run: alembic current
+
+      - name: Alembic downgrade and re-upgrade
+        run: |
+          alembic downgrade 202607240001
+          alembic upgrade head
 
       - name: Pytest
         run: pytest -q

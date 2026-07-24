@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import posixpath
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from uuid import uuid4
 
 from app.storage.base import ObjectStorage, StorageError
 
@@ -27,6 +29,29 @@ class LocalStorage(ObjectStorage):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
         return target
+
+    def create_staging_path(self, suffix: str = ".tmp") -> Path:
+        if "/" in suffix or "\\" in suffix:
+            msg = "Staging file suffix must not contain path separators."
+            raise StorageError(msg)
+        suffix = suffix if suffix.startswith(".") else f".{suffix}"
+        staging_path = self.resolve_safe_key(f".staging/{uuid4()}{suffix}")
+        staging_path.parent.mkdir(parents=True, exist_ok=True)
+        return staging_path
+
+    def commit_staged_file(self, staged_path: Path, key: str) -> Path:
+        self._assert_path_inside_root(staged_path)
+        target = self.resolve_safe_key(key)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(staged_path, target)
+        return target
+
+    def discard_path(self, path: Path) -> None:
+        self._assert_path_inside_root(path)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return
 
     def read(self, key: str) -> bytes:
         return self.resolve_safe_key(key).read_bytes()
@@ -56,3 +81,12 @@ class LocalStorage(ObjectStorage):
             msg = "Storage key contains path traversal."
             raise StorageError(msg)
         return normalized
+
+    def _assert_path_inside_root(self, path: Path) -> None:
+        root = self.root.resolve()
+        candidate = path.resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError as exc:
+            msg = "Storage path escapes the configured storage root."
+            raise StorageError(msg) from exc

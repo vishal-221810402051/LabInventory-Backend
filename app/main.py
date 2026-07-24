@@ -12,6 +12,7 @@ from app.api.error_handlers import (
     unexpected_error_handler,
     validation_error_handler,
 )
+from app.api.v1.capture_sessions import router as capture_sessions_router
 from app.api.v1.health import router as health_router
 from app.api.v1.system import router as system_router
 from app.core.config import Settings, get_settings
@@ -61,7 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="LabInventory Backend",
         version="0.1.0",
-        description="Phase 0 API contract for the LabInventory laptop backend.",
+        description="Phase 1 API contract for the LabInventory laptop backend.",
         lifespan=lifespan,
     )
     app.state.settings = resolved_settings
@@ -75,8 +76,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             CORSMiddleware,
             allow_origins=resolved_settings.cors_origin_list,
             allow_credentials=False,
-            allow_methods=["GET"],
-            allow_headers=["Content-Type", "X-Correlation-ID"],
+            allow_methods=["GET", "POST"],
+            allow_headers=["Content-Type", "Idempotency-Key", "X-Correlation-ID"],
             expose_headers=["X-Correlation-ID"],
         )
 
@@ -86,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_exception_handler(Exception, unexpected_error_handler)
     app.include_router(health_router)
     app.include_router(system_router)
+    app.include_router(capture_sessions_router)
     return app
 
 

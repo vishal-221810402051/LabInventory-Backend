@@ -15,6 +15,7 @@ dependencies = [
     "psycopg[binary]==3.2.3",
     "pydantic==2.10.4",
     "pydantic-settings==2.7.1",
+    "python-multipart==0.0.20",
     "python-json-logger==3.2.1",
     "sqlalchemy==2.0.36",
     "uvicorn[standard]==0.34.0",
@@ -30,8 +31,8 @@ dev = [
     "ruff==0.8.4",
 ]
 
-[tool.setuptools]
-packages = ["app", "app.api", "app.api.v1", "app.core", "app.db", "app.discovery", "app.schemas", "app.services", "app.storage", "tools"]
+[tool.setuptools.packages.find]
+include = ["app*", "tools*"]
 
 [tool.ruff]
 target-version = "py311"

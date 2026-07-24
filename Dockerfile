@@ -10,14 +10,17 @@ RUN addgroup --system appuser \
     && adduser --system --ingroup appuser appuser
 
 COPY pyproject.toml README.md ./
+RUN mkdir -p app tools \
+    && touch app/__init__.py tools/__init__.py
+
+RUN python -m pip install --upgrade pip \
+    && python -m pip install ".[dev]"
+
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
 COPY tests ./tests
 COPY tools ./tools
-
-RUN python -m pip install --upgrade pip \
-    && python -m pip install ".[dev]"
 
 RUN mkdir -p /data/instance /data/uploads \
     && chown -R appuser:appuser /app /data

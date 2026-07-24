@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.db.session import get_session_factory
+from app.services.capture_sessions import CaptureSessionService
 from app.services.readiness import ReadinessService
 from app.services.system_info import SystemInfoService
+from app.storage.local import LocalStorage
 
 
 def get_settings_dependency(request: Request) -> Settings:
@@ -32,3 +34,10 @@ def get_readiness_service(
 
 def get_system_info_service(request: Request) -> SystemInfoService:
     return request.app.state.system_info_service
+
+
+def get_capture_session_service(
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings_dependency)],
+) -> CaptureSessionService:
+    return CaptureSessionService(session, LocalStorage(settings.upload_root))

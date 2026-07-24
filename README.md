@@ -1,6 +1,6 @@
 # LabInventory Backend
 
-LabInventory is a laptop-hosted backend for an Android-first lab inventory system. Phase 0 builds the service foundation only: health checks, readiness, system information, stable backend identity, structured logs, correlation IDs, PostgreSQL/Alembic wiring, local storage safety, Docker, and mDNS discovery support.
+LabInventory is a laptop-hosted backend for an Android-first lab inventory system. Phase 0 builds the service foundation: health checks, readiness, system information, stable backend identity, structured logs, correlation IDs, PostgreSQL/Alembic wiring, local storage safety, Docker, and mDNS discovery support. Phase 1 adds draft capture-session persistence and secure local photo ingestion.
 
 ## Phase 0 Scope
 
@@ -36,6 +36,29 @@ Not included in Phase 0:
 - CSV exports
 - Analytics
 
+## Phase 1 Scope
+
+Included:
+
+- `POST /api/v1/capture-sessions`
+- `GET /api/v1/capture-sessions/{capture_session_id}`
+- `POST /api/v1/capture-sessions/{capture_session_id}/photos`
+- `POST /api/v1/capture-sessions/{capture_session_id}/complete`
+- PostgreSQL-backed capture drafts and photo metadata
+- Idempotent create and upload behavior
+- Streamed JPEG, PNG, and WebP upload validation
+- Local persistence under the `upload-data` Docker volume
+- Completion validation into `READY_FOR_PROCESSING`
+
+Not included in Phase 1:
+
+- OCR
+- GPT or AI classification
+- Inventory item creation
+- Authentication, pairing, or device authorization
+- Background processing or Android sync orchestration
+- Public file serving for uploaded photos
+
 ## Architecture
 
 Routes are intentionally thin. API handlers call services, services call infrastructure, and shared concerns live in `app/core`.
@@ -45,7 +68,9 @@ app/
   api/             FastAPI dependencies, error handlers, route modules
   core/            Settings, logging, correlation IDs, application errors
   db/              SQLAlchemy base and session factory
+  domain/          Phase-specific business enums and normalization rules
   discovery/       mDNS configuration, IP selection, Zeroconf advertiser
+  repositories/    Database query helpers
   schemas/         Typed API response and error models
   services/        Readiness and system-info services
   storage/         Storage interface and local-disk implementation
@@ -104,7 +129,7 @@ Do not use `Base.metadata.create_all()` at runtime.
 ## Tests
 
 ```powershell
-docker compose exec -T backend python -m compileall app
+docker compose exec -T backend python -m compileall app tests tools
 docker compose exec -T backend pytest -q
 ```
 
@@ -115,6 +140,79 @@ Run the full safe validation script:
 ```
 
 The script validates Compose, builds services, starts containers, applies migrations, runs tests, calls all Phase 0 endpoints, checks correlation headers, restarts only the backend container to verify the stable instance ID, and prints Git status. It does not delete volumes.
+
+Run the Phase 1 validation script:
+
+```powershell
+.\scripts\validate-phase1.ps1
+```
+
+The Phase 1 script validates Compose, starts DB and backend, applies Alembic, checks the single migration head, compiles `app`, `tests`, and `tools`, runs Pytest, Ruff, and Mypy, calls Phase 0 endpoints, creates a sample capture, uploads a tiny generated JPEG from a temporary host directory, completes the capture, fetches it, validates OpenAPI surfaces, removes temporary host files, and prints Git status. It does not delete Docker volumes.
+
+## Phase 1 API Examples
+
+Create a capture session. The `Idempotency-Key` header must equal `client_capture_id`.
+
+```powershell
+$captureId = [guid]::NewGuid()
+$body = @{
+  client_capture_id = "$captureId"
+  capture_mode = "PHOTO"
+  captured_at = "2026-07-24T18:30:00Z"
+  manual_entry = @{
+    name = "HC-SR04 ultrasonic sensor"
+    quantity = "2.000000"
+    unit = "pcs"
+    category_hint = "Sensors/Modules"
+    notes = "Stored in drawer A3"
+  }
+} | ConvertTo-Json -Depth 4
+
+Invoke-RestMethod `
+  -Uri "http://localhost:8000/api/v1/capture-sessions" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Headers @{ "Idempotency-Key" = "$captureId" } `
+  -Body $body
+```
+
+Quantities must be JSON strings, not floating-point numbers. They must be greater than zero, finite, plain decimal notation, and have no more than 6 fractional digits. Responses emit quantities as canonical JSON strings.
+
+Upload a photo. The `Idempotency-Key` header must equal `client_photo_id`.
+
+```powershell
+$photoId = [guid]::NewGuid()
+$sha = (Get-FileHash -Algorithm SHA256 .\sample.jpg).Hash.ToLowerInvariant()
+
+curl.exe -sS -X POST `
+  "http://localhost:8000/api/v1/capture-sessions/$captureId/photos" `
+  -H "Idempotency-Key: $photoId" `
+  -F "client_photo_id=$photoId" `
+  -F "sha256=$sha" `
+  -F "file=@sample.jpg;type=image/jpeg"
+```
+
+Supported media types are `image/jpeg`, `image/png`, and `image/webp`. The limit is 15 MiB. The backend validates MIME type, image signature, size, non-empty content, and SHA-256 while streaming. Original filenames are ignored, and files are persisted below `captures/{capture_session_id}/{photo_id}.{extension}` in the configured upload root. Uploaded files are not exposed through a static route.
+
+Complete a capture:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8000/api/v1/capture-sessions/$captureId/complete" `
+  -Method Post
+```
+
+Completion rules:
+
+- `MANUAL`: name, quantity, and unit required
+- `PHOTO`: at least one valid photo, quantity, and unit required; name optional
+- `PHOTO_WITH_MANUAL`: at least one valid photo, name, quantity, and unit required
+
+Create and upload requests are idempotent by client UUID. Exact replays return the original server record; conflicting replays return `409`. Completed captures cannot accept more photo uploads in Phase 1.
+
+Security limitations: Phase 1 still has no authentication, pairing, or device authorization. Run it only on a trusted local network. Discovery is not authorization.
+
+Data warning: uploads and database rows persist in Docker named volumes. Do not run `docker compose down -v` unless you intentionally want to erase local development data.
 
 ## Safe Shutdown
 

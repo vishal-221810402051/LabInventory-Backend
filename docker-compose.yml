@@ -40,6 +40,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-labinventory}:${POSTGRES_PASSWORD:-labinventory_dev_password}@db:5432/${POSTGRES_DB:-labinventory}
       UPLOAD_ROOT: /data/uploads
       INSTANCE_DATA_ROOT: /data/instance
+      RUN_DB_TESTS: ${RUN_DB_TESTS:-1}
       MDNS_ENABLED: ${MDNS_ENABLED:-false}
       MDNS_SERVICE_NAME: ${MDNS_SERVICE_NAME:-LabInventory Backend}
       MDNS_SERVICE_TYPE: ${MDNS_SERVICE_TYPE:-_labinventory._tcp.}
