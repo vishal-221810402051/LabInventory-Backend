@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "labinventory-backend"
+version = "0.1.0"
+description = "Phase 0 backend foundation for LabInventory."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "alembic==1.14.0",
+    "fastapi==0.115.6",
+    "httpx==0.28.1",
+    "psycopg[binary]==3.2.3",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.1",
+    "python-json-logger==3.2.1",
+    "sqlalchemy==2.0.36",
+    "uvicorn[standard]==0.34.0",
+    "zeroconf==0.136.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy==1.14.1",
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.0",
+    "pytest-cov==6.0.0",
+    "ruff==0.8.4",
+]
+
+[tool.setuptools]
+packages = ["app", "app.api", "app.api.v1", "app.core", "app.db", "app.discovery", "app.schemas", "app.services", "app.storage", "tools"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = [".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".venv", ".mdns-venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["app", "tools"]
+plugins = ["pydantic.mypy"]
+check_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = false
+strict_optional = true
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

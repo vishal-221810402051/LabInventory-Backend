@@ -1,0 +1,68 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - phase/0-foundation
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: labinventory
+          POSTGRES_USER: labinventory
+          POSTGRES_PASSWORD: labinventory_ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U labinventory -d labinventory"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg://labinventory:labinventory_ci_password@127.0.0.1:5432/labinventory
+      INSTANCE_DATA_ROOT: /tmp/labinventory-instance
+      UPLOAD_ROOT: /tmp/labinventory-uploads
+      MDNS_ENABLED: "false"
+      RUN_DB_TESTS: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev]"
+
+      - name: Ruff
+        run: python -m ruff check .
+
+      - name: Mypy
+        run: python -m mypy app tools
+
+      - name: Compile
+        run: python -m compileall app
+
+      - name: Alembic one head
+        run: test "$(alembic heads | wc -l)" -eq 1
+
+      - name: Alembic upgrade
+        run: alembic upgrade head
+
+      - name: Pytest
+        run: pytest -q
+
+      - name: Docker Compose config
+        run: docker compose config
