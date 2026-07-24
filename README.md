@@ -1,6 +1,6 @@
 # LabInventory Backend
 
-LabInventory is a laptop-hosted backend for an Android-first lab inventory system. Phase 0 builds the service foundation: health checks, readiness, system information, stable backend identity, structured logs, correlation IDs, PostgreSQL/Alembic wiring, local storage safety, Docker, and mDNS discovery support. Phase 1 adds draft capture-session persistence and secure local photo ingestion.
+LabInventory is a laptop-hosted backend for an Android-first lab inventory system. Phase 0 builds the service foundation: health checks, readiness, system information, stable backend identity, structured logs, correlation IDs, PostgreSQL/Alembic wiring, local storage safety, Docker, and mDNS discovery support. Phase 1 adds draft capture-session persistence and secure local photo ingestion. Phase 2 adds Android-supplied OCR result ingestion, deterministic text normalization, persistence, and retrieval.
 
 ## Phase 0 Scope
 
@@ -58,6 +58,27 @@ Not included in Phase 1:
 - Authentication, pairing, or device authorization
 - Background processing or Android sync orchestration
 - Public file serving for uploaded photos
+
+## Phase 2 Scope
+
+Included:
+
+- `POST /api/v1/capture-sessions/{capture_session_id}/ocr-results`
+- `GET /api/v1/capture-sessions/{capture_session_id}/ocr-results`
+- PostgreSQL-backed OCR result persistence
+- Android-supplied OCR model linked to an uploaded capture photo
+- Deterministic Unicode/text normalization
+- Idempotent OCR ingestion
+- Status-specific OCR validation
+
+Not included in Phase 2:
+
+- GPT or AI item identification
+- Automatic category or manufacturer inference
+- Inventory item creation
+- Server-side image OCR
+- Authentication, pairing, or device authorization
+- Background processing or sync orchestration
 
 ## Architecture
 
@@ -149,6 +170,14 @@ Run the Phase 1 validation script:
 
 The Phase 1 script validates Compose, starts DB and backend, applies Alembic, checks the single migration head, compiles `app`, `tests`, and `tools`, runs Pytest, Ruff, and Mypy, calls Phase 0 endpoints, creates a sample capture, uploads a tiny generated JPEG from a temporary host directory, completes the capture, fetches it, validates OpenAPI surfaces, removes temporary host files, and prints Git status. It does not delete Docker volumes.
 
+Run the Phase 2 validation script:
+
+```powershell
+.\scripts\validate-phase2.ps1
+```
+
+The Phase 2 script validates Compose, starts DB and backend, applies Alembic, compiles, tests, runs Ruff and Mypy, verifies Phase 0 endpoints, creates a sample photo capture, uploads a tiny generated JPEG, submits and replays OCR, retrieves OCR results, completes the capture, verifies new OCR is rejected after completion, removes temporary host files, and prints Git status. It does not delete Docker volumes.
+
 ## Phase 1 API Examples
 
 Create a capture session. The `Idempotency-Key` header must equal `client_capture_id`.
@@ -213,6 +242,66 @@ Create and upload requests are idempotent by client UUID. Exact replays return t
 Security limitations: Phase 1 still has no authentication, pairing, or device authorization. Run it only on a trusted local network. Discovery is not authorization.
 
 Data warning: uploads and database rows persist in Docker named volumes. Do not run `docker compose down -v` unless you intentionally want to erase local development data.
+
+## Phase 2 OCR Examples
+
+Phase 2 expects Android to run OCR and submit the result. The backend stores raw OCR exactly as supplied after validation, generates `normalized_text`, and stores `corrected_text` after applying the same conservative normalization. It does not infer item identity, category, quantity, manufacturer, or inventory records.
+
+Preferred synchronization order:
+
+1. Create capture session.
+2. Upload photo.
+3. Upload OCR result.
+4. Complete capture session.
+
+Submit OCR. The `Idempotency-Key` header must equal `client_ocr_id`.
+
+```powershell
+$ocrId = [guid]::NewGuid()
+$ocrBody = @{
+  client_ocr_id = "$ocrId"
+  client_photo_id = "$photoId"
+  engine = "ML_KIT_TEXT_RECOGNITION_V2"
+  engine_version = $null
+  status = "SUCCEEDED"
+  processed_at = "2026-07-25T10:00:00Z"
+  raw_text = "HC-SR04`r`nUltrasonic   Sensor`r`n5V"
+  corrected_text = "HC-SR04`nUltrasonic Sensor`n5V"
+  block_count = 1
+  line_count = 3
+  element_count = 5
+  detected_language_tags = @("en")
+}
+
+Invoke-RestMethod `
+  -Uri "http://localhost:8000/api/v1/capture-sessions/$captureId/ocr-results" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Headers @{ "Idempotency-Key" = "$ocrId" } `
+  -Body ($ocrBody | ConvertTo-Json -Depth 5)
+```
+
+List OCR results:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "http://localhost:8000/api/v1/capture-sessions/$captureId/ocr-results" `
+  -Method Get
+```
+
+Normalization uses Unicode NFKC, converts CRLF and CR to LF, rejects NUL, removes unsafe controls from normalized output, trims lines, collapses tabs and repeated horizontal whitespace, removes empty boundary lines, and collapses repeated internal blank lines to one blank line. It preserves case, punctuation, line order, and part numbers.
+
+Limits: raw and corrected text are each limited to 50,000 Unicode characters. `engine_version` is limited to 100 characters. Up to 16 language tags are accepted; each tag is limited to 35 characters. Language tags are trimmed, NFKC-normalized, underscore-to-hyphen normalized, lowercased, and de-duplicated in first-seen order.
+
+Statuses:
+
+- `SUCCEEDED`: usable raw text and at least one line required
+- `NO_TEXT`: raw and corrected text must be empty after normalization; all counts must be zero
+- `FAILED`: partial safe raw text is allowed; corrected text must be empty; diagnostic stack traces are rejected
+
+Create and OCR requests are idempotent by client UUID. Exact OCR replays return the original server record; conflicting replays return `409`. New OCR is rejected once a capture is `READY_FOR_PROCESSING`, while exact replay of an OCR result stored before completion still returns `200`.
+
+Security and privacy notes: Phase 2 still has no authentication, pairing, or device authorization. OCR text may contain sensitive labels or notes, so application logs include only counts and IDs, not raw or corrected OCR content.
 
 ## Safe Shutdown
 

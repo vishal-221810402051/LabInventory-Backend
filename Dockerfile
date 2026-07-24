@@ -9,13 +9,15 @@ WORKDIR /app
 RUN addgroup --system appuser \
     && adduser --system --ingroup appuser appuser
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml ./
 RUN mkdir -p app tools \
-    && touch app/__init__.py tools/__init__.py
+    && touch app/__init__.py tools/__init__.py \
+    && printf '# LabInventory Backend\n' > README.md
 
 RUN python -m pip install --upgrade pip \
     && python -m pip install ".[dev]"
 
+COPY README.md ./
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./

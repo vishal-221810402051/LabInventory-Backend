@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.db.session import get_session_factory
 from app.services.capture_sessions import CaptureSessionService
+from app.services.ocr_results import OcrResultService
 from app.services.readiness import ReadinessService
 from app.services.system_info import SystemInfoService
 from app.storage.local import LocalStorage
@@ -41,3 +42,9 @@ def get_capture_session_service(
     settings: Annotated[Settings, Depends(get_settings_dependency)],
 ) -> CaptureSessionService:
     return CaptureSessionService(session, LocalStorage(settings.upload_root))
+
+
+def get_ocr_result_service(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> OcrResultService:
+    return OcrResultService(session)
